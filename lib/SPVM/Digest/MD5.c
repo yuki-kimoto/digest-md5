@@ -1,14 +1,9 @@
 #include "spvm_native.h"
 
+#include <string.h>
+#include <assert.h>
 
-
-int32_t SPVM__Digest__MD5__foo(SPVM_ENV* env, SPVM_VALUE* stack) {
-  (void)env;
-  (void)stack;
-  
-  return 0;
-}
-
+const char* FILE_NAME = "SPVM/Digest/MD5.c";
 
 /* 
  * Originally
@@ -46,13 +41,13 @@ int32_t SPVM__Digest__MD5__foo(SPVM_ENV* env, SPVM_VALUE* stack) {
  * documentation and/or software.
  */
 
-/* Perl does not guarantee that U32 is exactly 32 bits.  Some system
+/* Perl does not guarantee that uint32_t is exactly 32 bits.  Some system
  * has no integral type with exactly 32 bits.  For instance, A Cray has
  * short, int and long all at 64 bits so we need to apply this macro
- * to reduce U32 values to 32 bits at appropriate places. If U32
+ * to reduce uint32_t values to 32 bits at appropriate places. If uint32_t
  * really does have 32 bits then this is a no-op.
  */
-#if BYTEORDER > 0x4321 || defined(TRUNCATE_U32)
+#if BYTEORDER > 0x4321 || defined(TRUNCATE_uint32_t)
   #define TO32(x)    ((x) &  0xFFFFffff)
   #define TRUNC32(x) ((x) &= 0xFFFFffff)
 #else
@@ -64,26 +59,26 @@ int32_t SPVM__Digest__MD5__foo(SPVM_ENV* env, SPVM_VALUE* stack) {
  * values.  The following macros (and functions) allow us to convert
  * between native integers and such values.
  */
-static void u2s(U32 u, U8* s)
+static void u2s(uint32_t u, uint8_t* s)
 {
-    *s++ = (U8)(u         & 0xFF);
-    *s++ = (U8)((u >>  8) & 0xFF);
-    *s++ = (U8)((u >> 16) & 0xFF);
-    *s   = (U8)((u >> 24) & 0xFF);
+    *s++ = (uint8_t)(u         & 0xFF);
+    *s++ = (uint8_t)((u >>  8) & 0xFF);
+    *s++ = (uint8_t)((u >> 16) & 0xFF);
+    *s   = (uint8_t)((u >> 24) & 0xFF);
 }
 
-#define s2u(s,u) ((u) =  (U32)(*s)            |  \
-                        ((U32)(*(s+1)) << 8)  |  \
-                        ((U32)(*(s+2)) << 16) |  \
-                        ((U32)(*(s+3)) << 24))
+#define s2u(s,u) ((u) =  (uint32_t)(*s)            |  \
+                        ((uint32_t)(*(s+1)) << 8)  |  \
+                        ((uint32_t)(*(s+2)) << 16) |  \
+                        ((uint32_t)(*(s+3)) << 24))
 
 /* This structure keeps the current state of algorithm.
  */
 typedef struct {
-  U32 A, B, C, D;  /* current digest */
-  U32 bytes_low;   /* counts bytes in message */
-  U32 bytes_high;  /* turn it into a 64-bit counter */
-  U8 buffer[128];  /* collect complete 64 byte blocks */
+  uint32_t A, B, C, D;  /* current digest */
+  uint32_t bytes_low;   /* counts bytes in message */
+  uint32_t bytes_high;  /* turn it into a 64-bit counter */
+  uint8_t buffer[128];  /* collect complete 64 byte blocks */
 } MD5_CTX;
 
 /* Padding is added at the end of the message in order to fill a
@@ -131,28 +126,28 @@ static const unsigned char PADDING[64] = {
  * Rotation is separate from addition to prevent recomputation.
  */
 #define FF(a, b, c, d, s, ac)                    \
- (a) += F ((b), (c), (d)) + (NEXTx) + (U32)(ac); \
+ (a) += F ((b), (c), (d)) + (NEXTx) + (uint32_t)(ac); \
  TRUNC32((a));                                   \
  (a) = ROTATE_LEFT ((a), (s));                   \
  (a) += (b);                                     \
  TRUNC32((a));
 
 #define GG(a, b, c, d, x, s, ac)                 \
- (a) += G ((b), (c), (d)) + X[x] + (U32)(ac);    \
+ (a) += G ((b), (c), (d)) + X[x] + (uint32_t)(ac);    \
  TRUNC32((a));                                   \
  (a) = ROTATE_LEFT ((a), (s));                   \
  (a) += (b);                                     \
  TRUNC32((a));
 
 #define HH(a, b, c, d, x, s, ac)                 \
- (a) += H ((b), (c), (d)) + X[x] + (U32)(ac);    \
+ (a) += H ((b), (c), (d)) + X[x] + (uint32_t)(ac);    \
  TRUNC32((a));                                   \
  (a) = ROTATE_LEFT ((a), (s));                   \
  (a) += (b);                                     \
  TRUNC32((a));
 
 #define II(a, b, c, d, x, s, ac)                 \
- (a) += I ((b), (c), (d)) + X[x] + (U32)(ac);    \
+ (a) += I ((b), (c), (d)) + X[x] + (uint32_t)(ac);    \
  TRUNC32((a));                                   \
  (a) = ROTATE_LEFT ((a), (s));                   \
  (a) += (b);                                     \
@@ -174,120 +169,120 @@ MD5Init(MD5_CTX *ctx)
 
 
 static void
-MD5Transform(MD5_CTX* ctx, const U8* buf, STRLEN blocks)
+MD5Transform(MD5_CTX* ctx, const uint8_t* buf, int32_t blocks)
 {
-#ifdef MD5_DEBUG
+#ifdef SPVM_DIGEST_MD5_DEBUG
     static int tcount = 0;
 #endif
 
-    U32 A = ctx->A;
-    U32 B = ctx->B;
-    U32 C = ctx->C;
-    U32 D = ctx->D;
+    uint32_t A = ctx->A;
+    uint32_t B = ctx->B;
+    uint32_t C = ctx->C;
+    uint32_t D = ctx->D;
 
     do {
-	U32 a = A;
-	U32 b = B;
-	U32 c = C;
-	U32 d = D;
+        uint32_t a = A;
+        uint32_t b = B;
+        uint32_t c = C;
+        uint32_t d = D;
 
-	U32 X[16];      /* little-endian values, used in round 2-4 */
-	U32 *uptr = X;
-	U32 tmp;
+        uint32_t X[16];      /* little-endian values, used in round 2-4 */
+        uint32_t *uptr = X;
+        uint32_t tmp;
         #define NEXTx  (s2u(buf,tmp), buf += 4, *uptr++ = tmp)
 
-#ifdef MD5_DEBUG
-	if (buf == ctx->buffer)
-	    fprintf(stderr,"%5d: Transform ctx->buffer", ++tcount);
-	else 
-	    fprintf(stderr,"%5d: Transform %p (%d)", ++tcount, buf, blocks);
+#ifdef SPVM_DIGEST_MD5_DEBUG
+        if (buf == ctx->buffer)
+            fprintf(stderr,"%5d: Transform ctx->buffer", ++tcount);
+        else 
+            fprintf(stderr,"%5d: Transform %p (%d)", ++tcount, buf, blocks);
 
-	{
-	    int i;
-	    fprintf(stderr,"[");
-	    for (i = 0; i < 16; i++) {
-		fprintf(stderr,"%x,", x[i]); /* FIXME */
-	    }
-	    fprintf(stderr,"]\n");
-	}
+        {
+            int i;
+            fprintf(stderr,"[");
+            for (i = 0; i < 16; i++) {
+                fprintf(stderr,"%x,", x[i]); /* FIXME */
+            }
+            fprintf(stderr,"]\n");
+        }
 #endif
 
-	/* Round 1 */
-	FF (a, b, c, d, S11, 0xd76aa478); /* 1 */
-	FF (d, a, b, c, S12, 0xe8c7b756); /* 2 */
-	FF (c, d, a, b, S13, 0x242070db); /* 3 */
-	FF (b, c, d, a, S14, 0xc1bdceee); /* 4 */
-	FF (a, b, c, d, S11, 0xf57c0faf); /* 5 */
-	FF (d, a, b, c, S12, 0x4787c62a); /* 6 */
-	FF (c, d, a, b, S13, 0xa8304613); /* 7 */
-	FF (b, c, d, a, S14, 0xfd469501); /* 8 */
-	FF (a, b, c, d, S11, 0x698098d8); /* 9 */
-	FF (d, a, b, c, S12, 0x8b44f7af); /* 10 */
-	FF (c, d, a, b, S13, 0xffff5bb1); /* 11 */
-	FF (b, c, d, a, S14, 0x895cd7be); /* 12 */
-	FF (a, b, c, d, S11, 0x6b901122); /* 13 */
-	FF (d, a, b, c, S12, 0xfd987193); /* 14 */
-	FF (c, d, a, b, S13, 0xa679438e); /* 15 */
-	FF (b, c, d, a, S14, 0x49b40821); /* 16 */
+        /* Round 1 */
+        FF (a, b, c, d, S11, 0xd76aa478); /* 1 */
+        FF (d, a, b, c, S12, 0xe8c7b756); /* 2 */
+        FF (c, d, a, b, S13, 0x242070db); /* 3 */
+        FF (b, c, d, a, S14, 0xc1bdceee); /* 4 */
+        FF (a, b, c, d, S11, 0xf57c0faf); /* 5 */
+        FF (d, a, b, c, S12, 0x4787c62a); /* 6 */
+        FF (c, d, a, b, S13, 0xa8304613); /* 7 */
+        FF (b, c, d, a, S14, 0xfd469501); /* 8 */
+        FF (a, b, c, d, S11, 0x698098d8); /* 9 */
+        FF (d, a, b, c, S12, 0x8b44f7af); /* 10 */
+        FF (c, d, a, b, S13, 0xffff5bb1); /* 11 */
+        FF (b, c, d, a, S14, 0x895cd7be); /* 12 */
+        FF (a, b, c, d, S11, 0x6b901122); /* 13 */
+        FF (d, a, b, c, S12, 0xfd987193); /* 14 */
+        FF (c, d, a, b, S13, 0xa679438e); /* 15 */
+        FF (b, c, d, a, S14, 0x49b40821); /* 16 */
 
-	/* Round 2 */
-	GG (a, b, c, d,  1, S21, 0xf61e2562); /* 17 */
-	GG (d, a, b, c,  6, S22, 0xc040b340); /* 18 */
-	GG (c, d, a, b, 11, S23, 0x265e5a51); /* 19 */
-	GG (b, c, d, a,  0, S24, 0xe9b6c7aa); /* 20 */
-	GG (a, b, c, d,  5, S21, 0xd62f105d); /* 21 */
-	GG (d, a, b, c, 10, S22,  0x2441453); /* 22 */
-	GG (c, d, a, b, 15, S23, 0xd8a1e681); /* 23 */
-	GG (b, c, d, a,  4, S24, 0xe7d3fbc8); /* 24 */
-	GG (a, b, c, d,  9, S21, 0x21e1cde6); /* 25 */
-	GG (d, a, b, c, 14, S22, 0xc33707d6); /* 26 */
-	GG (c, d, a, b,  3, S23, 0xf4d50d87); /* 27 */
-	GG (b, c, d, a,  8, S24, 0x455a14ed); /* 28 */
-	GG (a, b, c, d, 13, S21, 0xa9e3e905); /* 29 */
-	GG (d, a, b, c,  2, S22, 0xfcefa3f8); /* 30 */
-	GG (c, d, a, b,  7, S23, 0x676f02d9); /* 31 */
-	GG (b, c, d, a, 12, S24, 0x8d2a4c8a); /* 32 */
+        /* Round 2 */
+        GG (a, b, c, d,  1, S21, 0xf61e2562); /* 17 */
+        GG (d, a, b, c,  6, S22, 0xc040b340); /* 18 */
+        GG (c, d, a, b, 11, S23, 0x265e5a51); /* 19 */
+        GG (b, c, d, a,  0, S24, 0xe9b6c7aa); /* 20 */
+        GG (a, b, c, d,  5, S21, 0xd62f105d); /* 21 */
+        GG (d, a, b, c, 10, S22,  0x2441453); /* 22 */
+        GG (c, d, a, b, 15, S23, 0xd8a1e681); /* 23 */
+        GG (b, c, d, a,  4, S24, 0xe7d3fbc8); /* 24 */
+        GG (a, b, c, d,  9, S21, 0x21e1cde6); /* 25 */
+        GG (d, a, b, c, 14, S22, 0xc33707d6); /* 26 */
+        GG (c, d, a, b,  3, S23, 0xf4d50d87); /* 27 */
+        GG (b, c, d, a,  8, S24, 0x455a14ed); /* 28 */
+        GG (a, b, c, d, 13, S21, 0xa9e3e905); /* 29 */
+        GG (d, a, b, c,  2, S22, 0xfcefa3f8); /* 30 */
+        GG (c, d, a, b,  7, S23, 0x676f02d9); /* 31 */
+        GG (b, c, d, a, 12, S24, 0x8d2a4c8a); /* 32 */
 
-	/* Round 3 */
-	HH (a, b, c, d,  5, S31, 0xfffa3942); /* 33 */
-	HH (d, a, b, c,  8, S32, 0x8771f681); /* 34 */
-	HH (c, d, a, b, 11, S33, 0x6d9d6122); /* 35 */
-	HH (b, c, d, a, 14, S34, 0xfde5380c); /* 36 */
-	HH (a, b, c, d,  1, S31, 0xa4beea44); /* 37 */
-	HH (d, a, b, c,  4, S32, 0x4bdecfa9); /* 38 */
-	HH (c, d, a, b,  7, S33, 0xf6bb4b60); /* 39 */
-	HH (b, c, d, a, 10, S34, 0xbebfbc70); /* 40 */
-	HH (a, b, c, d, 13, S31, 0x289b7ec6); /* 41 */
-	HH (d, a, b, c,  0, S32, 0xeaa127fa); /* 42 */
-	HH (c, d, a, b,  3, S33, 0xd4ef3085); /* 43 */
-	HH (b, c, d, a,  6, S34,  0x4881d05); /* 44 */
-	HH (a, b, c, d,  9, S31, 0xd9d4d039); /* 45 */
-	HH (d, a, b, c, 12, S32, 0xe6db99e5); /* 46 */
-	HH (c, d, a, b, 15, S33, 0x1fa27cf8); /* 47 */
-	HH (b, c, d, a,  2, S34, 0xc4ac5665); /* 48 */
+        /* Round 3 */
+        HH (a, b, c, d,  5, S31, 0xfffa3942); /* 33 */
+        HH (d, a, b, c,  8, S32, 0x8771f681); /* 34 */
+        HH (c, d, a, b, 11, S33, 0x6d9d6122); /* 35 */
+        HH (b, c, d, a, 14, S34, 0xfde5380c); /* 36 */
+        HH (a, b, c, d,  1, S31, 0xa4beea44); /* 37 */
+        HH (d, a, b, c,  4, S32, 0x4bdecfa9); /* 38 */
+        HH (c, d, a, b,  7, S33, 0xf6bb4b60); /* 39 */
+        HH (b, c, d, a, 10, S34, 0xbebfbc70); /* 40 */
+        HH (a, b, c, d, 13, S31, 0x289b7ec6); /* 41 */
+        HH (d, a, b, c,  0, S32, 0xeaa127fa); /* 42 */
+        HH (c, d, a, b,  3, S33, 0xd4ef3085); /* 43 */
+        HH (b, c, d, a,  6, S34,  0x4881d05); /* 44 */
+        HH (a, b, c, d,  9, S31, 0xd9d4d039); /* 45 */
+        HH (d, a, b, c, 12, S32, 0xe6db99e5); /* 46 */
+        HH (c, d, a, b, 15, S33, 0x1fa27cf8); /* 47 */
+        HH (b, c, d, a,  2, S34, 0xc4ac5665); /* 48 */
 
-	/* Round 4 */
-	II (a, b, c, d,  0, S41, 0xf4292244); /* 49 */
-	II (d, a, b, c,  7, S42, 0x432aff97); /* 50 */
-	II (c, d, a, b, 14, S43, 0xab9423a7); /* 51 */
-	II (b, c, d, a,  5, S44, 0xfc93a039); /* 52 */
-	II (a, b, c, d, 12, S41, 0x655b59c3); /* 53 */
-	II (d, a, b, c,  3, S42, 0x8f0ccc92); /* 54 */
-	II (c, d, a, b, 10, S43, 0xffeff47d); /* 55 */
-	II (b, c, d, a,  1, S44, 0x85845dd1); /* 56 */
-	II (a, b, c, d,  8, S41, 0x6fa87e4f); /* 57 */
-	II (d, a, b, c, 15, S42, 0xfe2ce6e0); /* 58 */
-	II (c, d, a, b,  6, S43, 0xa3014314); /* 59 */
-	II (b, c, d, a, 13, S44, 0x4e0811a1); /* 60 */
-	II (a, b, c, d,  4, S41, 0xf7537e82); /* 61 */
-	II (d, a, b, c, 11, S42, 0xbd3af235); /* 62 */
-	II (c, d, a, b,  2, S43, 0x2ad7d2bb); /* 63 */
-	II (b, c, d, a,  9, S44, 0xeb86d391); /* 64 */
+        /* Round 4 */
+        II (a, b, c, d,  0, S41, 0xf4292244); /* 49 */
+        II (d, a, b, c,  7, S42, 0x432aff97); /* 50 */
+        II (c, d, a, b, 14, S43, 0xab9423a7); /* 51 */
+        II (b, c, d, a,  5, S44, 0xfc93a039); /* 52 */
+        II (a, b, c, d, 12, S41, 0x655b59c3); /* 53 */
+        II (d, a, b, c,  3, S42, 0x8f0ccc92); /* 54 */
+        II (c, d, a, b, 10, S43, 0xffeff47d); /* 55 */
+        II (b, c, d, a,  1, S44, 0x85845dd1); /* 56 */
+        II (a, b, c, d,  8, S41, 0x6fa87e4f); /* 57 */
+        II (d, a, b, c, 15, S42, 0xfe2ce6e0); /* 58 */
+        II (c, d, a, b,  6, S43, 0xa3014314); /* 59 */
+        II (b, c, d, a, 13, S44, 0x4e0811a1); /* 60 */
+        II (a, b, c, d,  4, S41, 0xf7537e82); /* 61 */
+        II (d, a, b, c, 11, S42, 0xbd3af235); /* 62 */
+        II (c, d, a, b,  2, S43, 0x2ad7d2bb); /* 63 */
+        II (b, c, d, a,  9, S44, 0xeb86d391); /* 64 */
 
-	A += a;  TRUNC32(A);
-	B += b;  TRUNC32(B);
-	C += c;  TRUNC32(C);
-	D += d;  TRUNC32(D);
+        A += a;  TRUNC32(A);
+        B += b;  TRUNC32(B);
+        C += c;  TRUNC32(C);
+        D += d;  TRUNC32(D);
 
     } while (--blocks);
     ctx->A = A;
@@ -297,66 +292,66 @@ MD5Transform(MD5_CTX* ctx, const U8* buf, STRLEN blocks)
 }
 
 
-#ifdef MD5_DEBUG
+#ifdef SPVM_DIGEST_MD5_DEBUG
 static char*
 ctx_dump(MD5_CTX* ctx)
 {
     static char buf[1024];
     sprintf(buf, "{A=%x,B=%x,C=%x,D=%x,%d,%d(%d)}",
-	    ctx->A, ctx->B, ctx->C, ctx->D,
-	    ctx->bytes_low, ctx->bytes_high, (ctx->bytes_low&0x3F));
+            ctx->A, ctx->B, ctx->C, ctx->D,
+            ctx->bytes_low, ctx->bytes_high, (ctx->bytes_low&0x3F));
     return buf;
 }
 #endif
 
 
 static void
-MD5Update(MD5_CTX* ctx, const U8* buf, STRLEN len)
+MD5Update(MD5_CTX* ctx, const uint8_t* buf, int32_t len)
 {
-    STRLEN blocks;
-    STRLEN fill = ctx->bytes_low & 0x3F;
+    int32_t blocks;
+    int32_t fill = ctx->bytes_low & 0x3F;
 
-#ifdef MD5_DEBUG  
+#ifdef SPVM_DIGEST_MD5_DEBUG  
     static int ucount = 0;
     fprintf(stderr,"%5i: Update(%s, %p, %d)\n", ++ucount, ctx_dump(ctx),
-	                                        buf, len);
+                                                buf, len);
 #endif
 
     ctx->bytes_low += len;
     if (ctx->bytes_low < len) /* wrap around */
-	ctx->bytes_high++;
+        ctx->bytes_high++;
 
     if (fill) {
-	STRLEN missing = 64 - fill;
-	if (len < missing) {
-	    Copy(buf, ctx->buffer + fill, len, U8);
-	    return;
-	}
-	Copy(buf, ctx->buffer + fill, missing, U8);
-	MD5Transform(ctx, ctx->buffer, 1);
-	buf += missing;
-	len -= missing;
+        int32_t missing = 64 - fill;
+        if (len < missing) {
+            memcpy(ctx->buffer + fill, buf, len * sizeof(uint8_t));
+            return;
+        }
+        memcpy(ctx->buffer + fill, buf, missing * sizeof(uint8_t));
+        MD5Transform(ctx, ctx->buffer, 1);
+        buf += missing;
+        len -= missing;
     }
 
     blocks = len >> 6;
     if (blocks)
-	MD5Transform(ctx, buf, blocks);
+        MD5Transform(ctx, buf, blocks);
     if ( (len &= 0x3F)) {
-	Copy(buf + (blocks << 6), ctx->buffer, len, U8);
+        memcpy(ctx->buffer, buf + (blocks << 6), len * sizeof(uint8_t));
     }
 }
 
 
 static void
-MD5Final(U8* digest, MD5_CTX *ctx)
+MD5Final(uint8_t* digest, MD5_CTX *ctx)
 {
-    STRLEN fill = ctx->bytes_low & 0x3F;
-    STRLEN padlen = (fill < 56 ? 56 : 120) - fill;
-    U32 bits_low, bits_high;
-#ifdef MD5_DEBUG
+    int32_t fill = ctx->bytes_low & 0x3F;
+    int32_t padlen = (fill < 56 ? 56 : 120) - fill;
+    uint32_t bits_low, bits_high;
+#ifdef SPVM_DIGEST_MD5_DEBUG
     fprintf(stderr,"       Final:  %s\n", ctx_dump(ctx));
 #endif
-    Copy(PADDING, ctx->buffer + fill, padlen, U8);
+    memcpy(ctx->buffer + fill, PADDING, padlen * sizeof(uint8_t));
     fill += padlen;
 
     bits_low = ctx->bytes_low << 3;
@@ -365,7 +360,7 @@ MD5Final(U8* digest, MD5_CTX *ctx)
     u2s(bits_high, ctx->buffer + fill);   fill += 4;
 
     MD5Transform(ctx, ctx->buffer, fill >> 6);
-#ifdef MD5_DEBUG
+#ifdef SPVM_DIGEST_MD5_DEBUG
     fprintf(stderr,"       Result: %s\n", ctx_dump(ctx));
 #endif
 
@@ -375,28 +370,6 @@ MD5Final(U8* digest, MD5_CTX *ctx)
     u2s(ctx->D, digest+12);
 }
 
-#ifndef INT2PTR
-#define INT2PTR(any,d)	(any)(d)
-#endif
-
-static MD5_CTX* get_md5_ctx(pTHX_ SV* sv)
-{
-    MAGIC *mg;
-
-    if (!sv_derived_from(sv, "Digest::MD5"))
-	croak("Not a reference to a Digest::MD5 object");
-
-    for (mg = SvMAGIC(SvRV(sv)); mg; mg = mg->mg_moremagic) {
-	if (mg->mg_type == PERL_MAGIC_ext
-	    && mg->mg_virtual == (const MGVTBL * const)&vtbl_md5) {
-	    return (MD5_CTX *)mg->mg_ptr;
-	}
-    }
-
-    croak("Failed to get MD5_CTX pointer");
-    return (MD5_CTX*)0; /* some compilers insist on a return value */
-}
-
 static char* hex_16(const unsigned char* from, char* to)
 {
     static const char hexdigits[] = "0123456789abcdef";
@@ -404,9 +377,9 @@ static char* hex_16(const unsigned char* from, char* to)
     char *d = to;
 
     while (from < end) {
-	*d++ = hexdigits[(*from >> 4)];
-	*d++ = hexdigits[(*from & 0x0F)];
-	from++;
+        *d++ = hexdigits[(*from >> 4)];
+        *d++ = hexdigits[(*from & 0x0F)];
+        from++;
     }
     *d = '\0';
     return to;
@@ -415,23 +388,23 @@ static char* hex_16(const unsigned char* from, char* to)
 static char* base64_16(const unsigned char* from, char* to)
 {
     static const char base64[] =
-	"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     const unsigned char *end = from + 16;
     unsigned char c1, c2, c3;
     char *d = to;
 
     while (1) {
-	c1 = *from++;
-	*d++ = base64[c1>>2];
-	if (from == end) {
-	    *d++ = base64[(c1 & 0x3) << 4];
-	    break;
-	}
-	c2 = *from++;
-	c3 = *from++;
-	*d++ = base64[((c1 & 0x3) << 4) | ((c2 & 0xF0) >> 4)];
-	*d++ = base64[((c2 & 0xF) << 2) | ((c3 & 0xC0) >>6)];
-	*d++ = base64[c3 & 0x3F];
+        c1 = *from++;
+        *d++ = base64[c1>>2];
+        if (from == end) {
+            *d++ = base64[(c1 & 0x3) << 4];
+            break;
+        }
+        c2 = *from++;
+        c3 = *from++;
+        *d++ = base64[((c1 & 0x3) << 4) | ((c2 & 0xF0) >> 4)];
+        *d++ = base64[((c2 & 0xF) << 2) | ((c3 & 0xC0) >>6)];
+        *d++ = base64[c3 & 0x3F];
     }
     *d = '\0';
     return to;
@@ -442,86 +415,98 @@ static char* base64_16(const unsigned char* from, char* to)
 #define F_HEX 1
 #define F_B64 2
 
-static SV* make_mortal_sv(pTHX_ const unsigned char *src, int type)
+static void* make_output(SPVM_ENV* env, SPVM_VALUE* stack, const unsigned char *src, int type)
 {
-    STRLEN len;
+    int32_t len;
     char result[33];
     char *ret;
     
     switch (type) {
     case F_BIN:
-	ret = (char*)src;
-	len = 16;
-	break;
+        ret = (char*)src;
+        len = 16;
+        break;
     case F_HEX:
-	ret = hex_16(src, result);
-	len = 32;
-	break;
+        ret = hex_16(src, result);
+        len = 32;
+        break;
     case F_B64:
-	ret = base64_16(src, result);
-	len = 22;
-	break;
+        ret = base64_16(src, result);
+        len = 22;
+        break;
     default:
-	croak("Bad conversion type (%d)", type);
-	break;
+        assert(0);
+        break;
     }
-    return sv_2mortal(newSVpv(ret,len));
+    
+    void* obj_ret = env->new_string(env, stack, ret, len);
+    
+    return obj_ret;
 }
 
-void
-md5(...)
-    ALIAS:
-	Digest::MD5::md5        = F_BIN
-	Digest::MD5::md5_hex    = F_HEX
-	Digest::MD5::md5_base64 = F_B64
-    PREINIT:
-	MD5_CTX ctx;
-	int i;
-	unsigned char *data;
-        STRLEN len;
-	unsigned char digeststr[16];
-    PPCODE:
-	MD5Init(&ctx);
+int32_t SPVM__Digest__MD5__md5(SPVM_ENV* env, SPVM_VALUE* stack) {
+        MD5_CTX ctx;
+        int i;
+        unsigned char *data;
+        int32_t len;
+        unsigned char digeststr[16];
 
-	if ((PL_dowarn & G_WARN_ON) || ckWARN(WARN_SYNTAX)) {
-            const char *msg = 0;
-	    if (items == 1) {
-		if (SvROK(ST(0))) {
-                    SV* sv = SvRV(ST(0));
-                    char *name;
-		    if (SvOBJECT(sv) && (name = HvNAME(SvSTASH(sv)))
-                                     && strEQ(name, "Digest::MD5"))
-		        msg = "probably called as method";
-		    else
-			msg = "called with reference argument";
-		}
-	    }
-	    else if (items > 1) {
-		data = (unsigned char *)SvPV(ST(0), len);
-		if (len == 11 && memEQ("Digest::MD5", data, 11)) {
-		    msg = "probably called as class method";
-		}
-		else if (SvROK(ST(0))) {
-		    SV* sv = SvRV(ST(0));
-                    char *name;
-		    if (SvOBJECT(sv) && (name = HvNAME(SvSTASH(sv)))
-                                     && strEQ(name, "Digest::MD5"))
-		        msg = "probably called as method";
-		}
-	    }
-	    if (msg) {
-	        const char *f = (ix == F_BIN) ? "md5" :
-		                (ix == F_HEX) ? "md5_hex" : "md5_base64";
-	        warn("&Digest::MD5::%s function %s", f, msg);
-	    }
-	}
+        void* obj_string = stack[0].oval;
+        
+        if (!obj_string) {
+          return env->die(env, stack, "The input must be defined", FILE_NAME, __LINE__);
+        }
+        
+        data = (unsigned char *)env->get_chars(env, stack, obj_string);
+        len = env->length(env, stack, obj_string);
+        
+        MD5Init(&ctx);
+        MD5Update(&ctx, data, len);
+        MD5Final(digeststr, &ctx);
+        void* output = make_output(env, stack, digeststr, F_BIN);
+        stack[0].oval;
+}
 
-	for (i = 0; i < items; i++) {
-            U32 had_utf8 = SvUTF8(ST(i));
-	    data = (unsigned char *)(SvPVbyte(ST(i), len));
-	    MD5Update(&ctx, data, len);
-	    if (had_utf8) sv_utf8_upgrade(ST(i));
-	}
-	MD5Final(digeststr, &ctx);
-        ST(0) = make_mortal_sv(aTHX_ digeststr, ix);
-        XSRETURN(1);
+int32_t SPVM__Digest__MD5__md5_hex(SPVM_ENV* env, SPVM_VALUE* stack) {
+        MD5_CTX ctx;
+        int i;
+        unsigned char *data;
+        int32_t len;
+        unsigned char digeststr[16];
+        void* obj_string = stack[0].oval;
+        
+        if (!obj_string) {
+          return env->die(env, stack, "The input must be defined", FILE_NAME, __LINE__);
+        }
+        
+        data = (unsigned char *)env->get_chars(env, stack, obj_string);
+        len = env->length(env, stack, obj_string);
+        
+        MD5Init(&ctx);
+        MD5Update(&ctx, data, len);
+        MD5Final(digeststr, &ctx);
+        void* output = make_output(env, stack, digeststr, F_HEX);
+        stack[0].oval;
+}
+
+int32_t SPVM__Digest__MD5__md5_base64(SPVM_ENV* env, SPVM_VALUE* stack) {
+        MD5_CTX ctx;
+        int i;
+        unsigned char *data;
+        int32_t len;
+        unsigned char digeststr[16];
+        void* obj_string = stack[0].oval;
+        
+        if (!obj_string) {
+          return env->die(env, stack, "The input must be defined", FILE_NAME, __LINE__);
+        }
+        
+        data = (unsigned char *)env->get_chars(env, stack, obj_string);
+        len = env->length(env, stack, obj_string);
+        
+        MD5Init(&ctx);
+        MD5Update(&ctx, data, len);
+        MD5Final(digeststr, &ctx);
+        void* output = make_output(env, stack, digeststr, F_B64);
+        stack[0].oval;
+}

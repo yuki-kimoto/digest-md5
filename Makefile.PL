@@ -5,6 +5,7 @@ use warnings;
 
 use Config qw(%Config);
 use ExtUtils::MakeMaker;
+use SPVM::Builder::Util::API;
 
 my @extra;
 push(@extra, INSTALLDIRS => 'perl') if $] >= 5.008 && $] < 5.012;
@@ -62,4 +63,15 @@ BEGIN {
         }
         ExtUtils::MakeMaker::WriteMakefile(%arg);
     };
+}
+
+# Add Build shared library make rule
+sub MY::postamble {
+
+  my $make_rule = '';
+  
+  # Native make rule
+  $make_rule .= SPVM::Builder::Util::API::create_make_rule_native('Digest::MD5');
+  
+  return $make_rule;
 }
