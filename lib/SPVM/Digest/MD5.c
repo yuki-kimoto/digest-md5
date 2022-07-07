@@ -465,6 +465,7 @@ int32_t SPVM__Digest__MD5__md5(SPVM_ENV* env, SPVM_VALUE* stack) {
         MD5Final(digeststr, &ctx);
         void* output = make_output(env, stack, digeststr, F_BIN);
         stack[0].oval = output;
+        return 0;
 }
 
 int32_t SPVM__Digest__MD5__md5_hex(SPVM_ENV* env, SPVM_VALUE* stack) {
@@ -487,6 +488,7 @@ int32_t SPVM__Digest__MD5__md5_hex(SPVM_ENV* env, SPVM_VALUE* stack) {
         MD5Final(digeststr, &ctx);
         void* output = make_output(env, stack, digeststr, F_HEX);
         stack[0].oval = output;
+        return 0;
 }
 
 int32_t SPVM__Digest__MD5__md5_base64(SPVM_ENV* env, SPVM_VALUE* stack) {
@@ -509,4 +511,6 @@ int32_t SPVM__Digest__MD5__md5_base64(SPVM_ENV* env, SPVM_VALUE* stack) {
         MD5Final(digeststr, &ctx);
         void* output = make_output(env, stack, digeststr, F_B64);
         stack[0].oval = output;
+        
+        return 0;
 }
