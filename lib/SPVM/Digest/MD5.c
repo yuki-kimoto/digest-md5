@@ -11,6 +11,8 @@ int32_t SPVM__Digest__MD5__foo(SPVM_ENV* env, SPVM_VALUE* stack) {
 
 
 /* 
+ * Originally
+
  * This library is free software; you can redistribute it and/or
  * modify it under the same terms as Perl itself.
  * 
@@ -43,62 +45,6 @@ int32_t SPVM__Digest__MD5__foo(SPVM_ENV* env, SPVM_VALUE* stack) {
  * These notices must be retained in any copies of any part of this
  * documentation and/or software.
  */
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-#define PERL_NO_GET_CONTEXT     /* we want efficiency */
-#include "EXTERN.h"
-#include "perl.h"
-#include "XSUB.h"
-#ifdef __cplusplus
-}
-#endif
-
-#ifndef PERL_UNUSED_VAR
-# define PERL_UNUSED_VAR(x) ((void)x)
-#endif
-
-#ifndef PERL_MAGIC_ext
-# define PERL_MAGIC_ext '~'
-#endif
-
-#ifndef Newxz
-# define Newxz(v,n,t) Newz(0,v,n,t)
-#endif
-
-#ifndef SvMAGIC_set
-# define SvMAGIC_set(sv, mg) (SvMAGIC(sv) = (mg))
-#endif
-
-#ifndef sv_magicext
-# define sv_magicext(sv, obj, type, vtbl, name, namlen) \
-    THX_sv_magicext(aTHX_ sv, obj, type, vtbl, name, namlen)
-static MAGIC *THX_sv_magicext(pTHX_ SV *sv, SV *obj, int type,
-    MGVTBL const *vtbl, char const *name, I32 namlen)
-{
-    MAGIC *mg;
-    if (obj || namlen)
-	/* exceeded intended usage of this reserve implementation */
-	return NULL;
-    Newxz(mg, 1, MAGIC);
-    mg->mg_virtual = (MGVTBL*)vtbl;
-    mg->mg_type = type;
-    mg->mg_ptr = (char *)name;
-    mg->mg_len = -1;
-    (void) SvUPGRADE(sv, SVt_PVMG);
-    mg->mg_moremagic = SvMAGIC(sv);
-    SvMAGIC_set(sv, mg);
-    SvMAGICAL_off(sv);
-    mg_magical(sv);
-    return mg;
-}
-#endif
-
-#if PERL_VERSION < 8
-# undef SvPVbyte
-# define SvPVbyte(sv, lp) (sv_utf8_downgrade((sv), 0), SvPV((sv), (lp)))
-#endif
 
 /* Perl does not guarantee that U32 is exactly 32 bits.  Some system
  * has no integral type with exactly 32 bits.  For instance, A Cray has
@@ -139,43 +85,6 @@ typedef struct {
   U32 bytes_high;  /* turn it into a 64-bit counter */
   U8 buffer[128];  /* collect complete 64 byte blocks */
 } MD5_CTX;
-
-#if defined(USE_ITHREADS) && defined(MGf_DUP)
-STATIC int dup_md5_ctx(pTHX_ MAGIC *mg, CLONE_PARAMS *params)
-{
-    MD5_CTX *new_ctx;
-    PERL_UNUSED_VAR(params);
-    New(55, new_ctx, 1, MD5_CTX);
-    memcpy(new_ctx, mg->mg_ptr, sizeof(MD5_CTX));
-    mg->mg_ptr = (char *)new_ctx;
-    return 0;
-}
-#endif
-
-#if defined(MGf_DUP) && defined(USE_ITHREADS)
-STATIC const MGVTBL vtbl_md5 = {
-    NULL, /* get */
-    NULL, /* set */
-    NULL, /* len */
-    NULL, /* clear */
-    NULL, /* free */
-    NULL, /* copy */
-    dup_md5_ctx, /* dup */
-    NULL /* local */
-};
-#else
-/* declare as 5 member, not normal 8 to save image space*/
-STATIC const struct {
-	int (*svt_get)(SV* sv, MAGIC* mg);
-	int (*svt_set)(SV* sv, MAGIC* mg);
-	U32 (*svt_len)(SV* sv, MAGIC* mg);
-	int (*svt_clear)(SV* sv, MAGIC* mg);
-	int (*svt_free)(SV* sv, MAGIC* mg);
-} vtbl_md5 = {
-	NULL, NULL, NULL, NULL, NULL
-};
-#endif
-
 
 /* Padding is added at the end of the message in order to fill a
  * complete 64 byte block (- 8 bytes for the message length).  The
@@ -488,29 +397,6 @@ static MD5_CTX* get_md5_ctx(pTHX_ SV* sv)
     return (MD5_CTX*)0; /* some compilers insist on a return value */
 }
 
-static SV * new_md5_ctx(pTHX_ MD5_CTX *context, const char *klass)
-{
-    SV *sv = newSV(0);
-    SV *obj = newRV_noinc(sv);
-#ifdef USE_ITHREADS
-    MAGIC *mg;
-#endif
-
-    sv_bless(obj, gv_stashpv(klass, 0));
-
-#ifdef USE_ITHREADS
-    mg =
-#endif
-	sv_magicext(sv, NULL, PERL_MAGIC_ext, (const MGVTBL * const)&vtbl_md5, (const char *)context, 0);
-
-#if defined(USE_ITHREADS) && defined(MGf_DUP)
-    mg->mg_flags |= MGf_DUP;
-#endif
-
-    return obj;
-}
-
-
 static char* hex_16(const unsigned char* from, char* to)
 {
     static const char hexdigits[] = "0123456789abcdef";
@@ -581,173 +467,6 @@ static SV* make_mortal_sv(pTHX_ const unsigned char *src, int type)
     }
     return sv_2mortal(newSVpv(ret,len));
 }
-
-
-/********************************************************************/
-
-typedef PerlIO* InputStream;
-
-MODULE = Digest::MD5		PACKAGE = Digest::MD5
-
-PROTOTYPES: DISABLE
-
-void
-new(xclass)
-	SV* xclass
-    PREINIT:
-	MD5_CTX* context;
-    PPCODE:
-	if (!SvROK(xclass)) {
-	    STRLEN my_na;
-	    const char *sclass = SvPV(xclass, my_na);
-	    New(55, context, 1, MD5_CTX);
-	    ST(0) = sv_2mortal(new_md5_ctx(aTHX_ context, sclass));
-	} else {
-	    context = get_md5_ctx(aTHX_ xclass);
-	}
-	MD5Init(context);
-	XSRETURN(1);
-
-void
-clone(self)
-	SV* self
-    PREINIT:
-	MD5_CTX* cont = get_md5_ctx(aTHX_ self);
-	const char *myname = sv_reftype(SvRV(self),TRUE);
-	MD5_CTX* context;
-    PPCODE:
-	New(55, context, 1, MD5_CTX);
-	ST(0) = sv_2mortal(new_md5_ctx(aTHX_ context, myname));
-	memcpy(context,cont,sizeof(MD5_CTX));
-	XSRETURN(1);
-
-void
-DESTROY(context)
-	MD5_CTX* context
-    CODE:
-        Safefree(context);
-
-void
-add(self, ...)
-	SV* self
-    PREINIT:
-	MD5_CTX* context = get_md5_ctx(aTHX_ self);
-	int i;
-	unsigned char *data;
-	STRLEN len;
-    PPCODE:
-	for (i = 1; i < items; i++) {
-            U32 had_utf8 = SvUTF8(ST(i));
-	    data = (unsigned char *)(SvPVbyte(ST(i), len));
-	    MD5Update(context, data, len);
-	    if (had_utf8) sv_utf8_upgrade(ST(i));
-	}
-	XSRETURN(1);  /* self */
-
-void
-addfile(self, fh)
-	SV* self
-	InputStream fh
-    PREINIT:
-	MD5_CTX* context = get_md5_ctx(aTHX_ self);
-	STRLEN fill = context->bytes_low & 0x3F;
-#ifdef USE_HEAP_INSTEAD_OF_STACK
-	unsigned char* buffer;
-#else
-	unsigned char buffer[4096];
-#endif
-	int  n;
-    CODE:
-	if (fh) {
-#ifdef USE_HEAP_INSTEAD_OF_STACK
-	    New(0, buffer, 4096, unsigned char);
-	    assert(buffer);
-#endif
-            if (fill) {
-	        /* The MD5Update() function is faster if it can work with
-	         * complete blocks.  This will fill up any buffered block
-	         * first.
-	         */
-	        STRLEN missing = 64 - fill;
-	        if ( (n = PerlIO_read(fh, buffer, missing)) > 0)
-	 	    MD5Update(context, buffer, n);
-	        else
-		    XSRETURN(1);  /* self */
-	    }
-
-	    /* Process blocks until EOF or error */
-            while ( (n = PerlIO_read(fh, buffer, sizeof(buffer))) > 0) {
-	        MD5Update(context, buffer, n);
-	    }
-#ifdef USE_HEAP_INSTEAD_OF_STACK
-	    Safefree(buffer);
-#endif
-	    if (PerlIO_error(fh)) {
-		croak("Reading from filehandle failed");
-	    }
-	}
-	else {
-	    croak("No filehandle passed");
-	}
-	XSRETURN(1);  /* self */
-
-void
-digest(context)
-	MD5_CTX* context
-    ALIAS:
-	Digest::MD5::digest    = F_BIN
-	Digest::MD5::hexdigest = F_HEX
-	Digest::MD5::b64digest = F_B64
-    PREINIT:
-	unsigned char digeststr[16];
-    PPCODE:
-        MD5Final(digeststr, context);
-	MD5Init(context);  /* In case it is reused */
-        ST(0) = make_mortal_sv(aTHX_ digeststr, ix);
-        XSRETURN(1);
-
-void
-context(ctx, ...)
-	MD5_CTX* ctx
-    PREINIT:
-	char out[16];
-        U32 w;
-    PPCODE:
-	if (items > 2) {
-	    STRLEN len;
-	    unsigned long blocks = SvUV(ST(1));
-	    unsigned char *buf = (unsigned char *)(SvPV(ST(2), len));
-	    ctx->A = buf[ 0] | (buf[ 1]<<8) | (buf[ 2]<<16) | (buf[ 3]<<24);
-	    ctx->B = buf[ 4] | (buf[ 5]<<8) | (buf[ 6]<<16) | (buf[ 7]<<24);
-	    ctx->C = buf[ 8] | (buf[ 9]<<8) | (buf[10]<<16) | (buf[11]<<24);
-	    ctx->D = buf[12] | (buf[13]<<8) | (buf[14]<<16) | (buf[15]<<24);
-	    ctx->bytes_low = blocks << 6;
-	    ctx->bytes_high = blocks >> 26;
-	    if (items == 4) {
-		buf = (unsigned char *)(SvPV(ST(3), len));
-		MD5Update(ctx, buf, len);
-	    }
-	    XSRETURN(1); /* ctx */
-	} else if (items != 1) {
-	    XSRETURN(0);
-	}
-
-        w=ctx->A; out[ 0]=(char)w; out[ 1]=(char)(w>>8); out[ 2]=(char)(w>>16); out[ 3]=(char)(w>>24);
-        w=ctx->B; out[ 4]=(char)w; out[ 5]=(char)(w>>8); out[ 6]=(char)(w>>16); out[ 7]=(char)(w>>24);
-        w=ctx->C; out[ 8]=(char)w; out[ 9]=(char)(w>>8); out[10]=(char)(w>>16); out[11]=(char)(w>>24);
-        w=ctx->D; out[12]=(char)w; out[13]=(char)(w>>8); out[14]=(char)(w>>16); out[15]=(char)(w>>24);
-
-	EXTEND(SP, 3);
-	ST(0) = sv_2mortal(newSVuv(ctx->bytes_high << 26 |
-				   ctx->bytes_low >> 6));
-	ST(1) = sv_2mortal(newSVpv(out, 16));
-
-	if ((ctx->bytes_low & 0x3F) == 0)
-	    XSRETURN(2);
-
-	ST(2) = sv_2mortal(newSVpv((char *)ctx->buffer,
-				   ctx->bytes_low & 0x3F));
-	XSRETURN(3);
 
 void
 md5(...)
